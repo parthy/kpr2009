@@ -1,0 +1,181 @@
+/**
+ * \file   libc_backends/l4re_mem/mem.cc
+ */
+/*
+ * (c) 2004-2009 Technische Universität Dresden
+ * This file is part of TUD:OS and distributed under the terms of the
+ * GNU Lesser General Public License 2.1.
+ * Please see the COPYING-LGPL-2.1 file for details.
+ */
+#include <stdlib.h>
+#include <l4/sys/kdebug.h>
+#include <l4/sys/capability>
+#include <l4/re/env>
+#include <l4/re/util/cap_alloc>
+#include <stdio.h>
+//includes for the simple bitmap version
+#include <l4/cxx/bitmap>
+#include <math.h>
+#include "shared.cc"
+
+
+//defines for the simple_bitmap version of malloc
+#define SB_ALLOCATABLE_SIZE 83886080 	//total allocatable size using this malloc verison 10Mo
+//#define SB_ALLOCATABLE_SIZE 4000 	//total allocatable size using this malloc verison 
+#define SB_BITMAP_SIZE 2621440		//size of the bitmap (number of bits)
+//#define SB_BITMAP_SIZE 32		//size of the bitmap (number of bits)
+				//   defining the smallst allocatable size to SB_ALLOCATABLE_SIZE / SB_BITMAP_SIZE 
+				//   example : 83886080/2621440 = 32bits
+#define SB_STARTUP -1
+#define SB_READY 1
+
+static cxx::Bitmap<SB_BITMAP_SIZE> sb_bitmap;
+static unsigned long sb_addr;			//adress of the beginning of the allocated area
+static int sb_state = SB_STARTUP;		//is the bitmap initialized ?
+
+
+void *malloc_kernel(unsigned size) {
+	printf_dbg(2,"malloc_kernel : trying to allocate a size of %i.\n",size);
+	
+	//get the dataspace
+	L4::Cap<L4Re::Dataspace> ds = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
+	if (!ds.is_valid()) return 0;
+	
+	//allocate the memory
+	long err = L4Re::Env::env()->mem_alloc()->alloc( size, ds);
+	if (err){
+		printf("ERR - malloc_kernel : FAIL ! Was Trying to allocate the memory...\n");
+		return 0;
+	}
+	
+	//attach the memory
+	void *addr = 0;
+	err = L4Re::Env::env()->rm()->attach(&addr, size, L4Re::Rm::Search_addr, ds, 0);
+	if (err){
+		printf("ERR - malloc_kernel : FAIL ! Was Trying to attach the memory...\n");
+		return 0;
+	}
+	
+	return addr;
+}
+
+void print_sb_bitmap_state(int lvl=1){
+	//debug level
+	printf_dbg(lvl,"BITMAP STATE : ");
+	for (int i=0;i<SB_BITMAP_SIZE;i++) {
+		sb_bitmap[i]?printf_dbg(lvl,"1"):printf_dbg(lvl,"0");
+	}
+	printf_dbg(lvl,".\n");
+}
+
+
+void malloc_init() {
+	printf_dbg(2,"malloc : Allocating the bitmap\n");
+	sb_addr = (unsigned long)malloc_kernel(SB_ALLOCATABLE_SIZE);
+	if (!sb_addr) {
+		printf("ERR - malloc : Could not allocate the bitmap\n");
+	}
+	sb_bitmap.clear_all();
+	sb_state=SB_READY;
+	printf_dbg(2,"Bitmap allocated, we're ready to go !\n");
+}
+
+
+void *malloc(unsigned size) throw() {
+	printf_dbg(1,"malloc : trying to allocate a size of %i.\n",size);
+
+	if (sb_state!=SB_READY) {
+		malloc_init();
+        }
+	
+	// size of the memory corresponding to 1 bit of the bitmap
+	int bit_size = floor(SB_ALLOCATABLE_SIZE / SB_BITMAP_SIZE); //round down
+
+
+	// calculating the number of partitions we're gonna need
+	int bits_to_find = size/bit_size;
+	if (size % bit_size > 0) {
+		bits_to_find++;
+	} 
+ 
+	printf_dbg(3,"We need to find %i + 2 blocks free in the bitmap.\n",bits_to_find);
+
+	printf_dbg(4,"size=%i - bit_size=%i - bits_to_find=%i .\n",size,bit_size,bits_to_find);
+
+	//searching through the bitmap
+	long bit_set_begin = 0;
+	bool found=true;
+	do {		
+		printf_dbg(4,"malloc : loop : finding the next free bit after the bit number %li.\n",bit_set_begin);
+		//finding the first empty bit following the current targeted bit
+		//bit_set_begin = sb_bitmap.scan_zero(bit_set_begin); 
+			// Seems scan_zero does not work if the bit passed is set (value=1)... it return 0.
+		while (sb_bitmap[bit_set_begin]){bit_set_begin++;};
+
+		printf_dbg(4,"malloc : bit number %li is free, testing if we have %i + 2 bits free starting at %li.\n",bit_set_begin,bits_to_find,bit_set_begin);
+		//assume we have found the right spot...
+		found=true;
+
+		//checking that we have bits_to_find+2 bits aviable
+		for (int i=1;i<bits_to_find+2;i++) {
+			found = found && !sb_bitmap[bit_set_begin+i];
+			if (!found) {
+				printf_dbg(4,"Bit %li + offset %i is NOT FREE, break, search for anothe spot !\n",bit_set_begin,i);
+				bit_set_begin=bit_set_begin+i+1;
+				break;
+			}
+			printf_dbg(5,"Bit %li + offset %i is STILL FREE... We keep looking...\n",bit_set_begin,i);
+		}
+
+	} while (!found && (bit_set_begin>=0 && bit_set_begin<SB_BITMAP_SIZE)) ;
+
+	//if we couldn'n find enough bits to allocate, throw an error.
+	if (!found) {
+		//printf("We couldn't find a spot, terminated with bit_set_begin=%li.\n",bit_set_begin);
+		printf("ERR - malloc : ERROR ! bitmap might be full. We couldn't find %i+2 bits. !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",bits_to_find);
+		print_sb_bitmap_state(1);
+		//throw 0;
+	}
+	
+	printf_dbg(3,"We could find a spot, beginning at bit %li and covering %i+2 bits !\n",bit_set_begin,bits_to_find);
+
+	printf_dbg(3,"Setting the appropriates bits to 1 in the bitmap.\n");
+	for (int i=1;i<bits_to_find+1;i++) {
+		sb_bitmap.set_bit(bit_set_begin+i);
+	}
+
+	printf_dbg(2,"Returning the adress + the proper offset.\n");
+	unsigned long addr = ceil(sb_addr + ((bit_set_begin+1)*(SB_ALLOCATABLE_SIZE / SB_BITMAP_SIZE)) );
+
+	print_sb_bitmap_state(2);
+	return (void*)addr;
+}
+
+
+void free(void *p) throw() {
+	//printf("Free called with p=%i\n",(int)(p));	
+	//printf("ab_saddr = %ld\n",sb_addr);
+		
+	unsigned long int addr_offset = (unsigned long)p-sb_addr;
+	//printf("Adress offste = %ld\n",addr_offset);
+
+	// size of the memory corresponding to 1 bit of the bitmap
+        int bit_size = floor(SB_ALLOCATABLE_SIZE / SB_BITMAP_SIZE); //round down
+	
+	unsigned long int first_bit_to_free = floor(addr_offset/bit_size);
+	//printf("First block to free = %u\n",first_bit_to_free);
+
+	//freeing the bits starting at the first, ending at the first free bit.
+	unsigned long int bit_iterator = first_bit_to_free;
+	while (sb_bitmap[bit_iterator]) {
+		sb_bitmap.clear_bit(bit_iterator++);
+	}
+
+	// as we only handle 1 bitmap, it's useless to free this bitmap in the kernel.
+	// otherwise, we should check here if the bitmap is empty (not used anymore)
+	// and we should release the capability and tell the kernel the memory is free.
+
+	//printf("free : ");
+	//print_sb_bitmap_state(2);
+}
+

@@ -1,0 +1,23 @@
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/math
+END
+sincos.c
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/math/sincos.c
+END
+log2f.c
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/math/log2f.c
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/math/Makefile
+END

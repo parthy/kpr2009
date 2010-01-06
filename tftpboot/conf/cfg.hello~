@@ -1,0 +1,22 @@
+[namespace:server]
+  hello_server;
+  rom=rom;
+
+[namespace:client]
+  hello_server = ns/server/hello_server;
+  rom=rom;
+
+rom/ex_hello-server
+  ns=ns/server,rw;
+  log=logger->open("server", R);
+  l4re_dbg=warn,exceptions;
+
+rom/ex_hello-client 1
+  ns=ns/client;
+  log=logger->open("client", B);
+  l4re_dbg=warn,exceptions;
+
+rom/ex_hello-client 2
+  ns=ns/client;
+  log=logger->open("client", B);
+  l4re_dbg=warn,exceptions;

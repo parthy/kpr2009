@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/self_mem
+END
+getpagesize.c
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/self_mem/getpagesize.c
+END
+mmap.c
+K 25
+svn:wc:ra_dav:version-url
+V 82
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/self_mem/mmap.c
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 84
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/self_mem/Makefile
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 82
+/Studium/Praktikum/src/!svn/ver/117/trunk/l4/pkg/libc_backends/lib/self_mem/README
+END

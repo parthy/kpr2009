@@ -54,11 +54,15 @@ void renderText();
 int
 Hello_server::dispatch(l4_umword_t, L4::Ipc_iostream &ios)
 {
+  printf("text\n");
   l4_msgtag_t t;
   ios >> t;
+  printf("text\n");
   L4::Opcode opcode;
   ios >> opcode;
+  printf("text\n");
   if(opcode == Opcode::func_show) {
+        printf("text\n");
 	unsigned long l;
 	std::string * str = new std::string("Client: ");
 	char buffer[10];
@@ -86,16 +90,24 @@ Hello_service::open(int argc, cxx::String const *argv)
 
 int
 Hello_service::dispatch(l4_umword_t, L4::Ipc_iostream &ios)
-{
+{  printf("text\n");
+
   l4_msgtag_t t;
   ios >> t;
+  printf("text\n");
 
   L4::Opcode opcode;
   ios >> opcode;
+  printf("text\n");
 
   if(opcode ==  L4Re::Service_::Open) {
+  printf("text\n");
 	Hello_server * hello2 = new Hello_server();
+  printf("text\n");
+	printf("Address for hello server: %p\n", hello2);
+  printf("text\n");
 	my_registry.register_obj(hello2);
+  printf("text\n");
 	ios <<  hello2->obj_cap();
 	return L4_EOK;
   }
@@ -112,7 +124,7 @@ void renderText() {
 		printToConsole(*it);
 		yoffset -= 20;
 		linesToPrint--;
-		if(linesToPrint == 0) break;		
+		if(linesToPrint == 0) break;
 	}
 }
 
@@ -138,7 +150,7 @@ main()
       printf("Could not register my service, readonly namespace?\n");
       return 1;
     }
-  
+
    // Wait for client requests
   server.loop();
 

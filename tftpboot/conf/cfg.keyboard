@@ -1,0 +1,8 @@
+[namespace:keyboard]
+  rom=rom;
+  sigma0=sigma0;
+  icu=icu;
+  
+rom/keyboard
+  ns=ns/keyboard;
+  log=logger->open("keyb", B);

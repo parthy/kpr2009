@@ -6,11 +6,12 @@ L4DIR	?= $(PKGDIR)/../..
 # line and adapt it.
 # TARGET = include src lib server examples doc
 
+L4_MULTITHREADED=y
 REQUIRES_LIBS += libstdc++ libgfxbitmap
 
 TARGET = hserver hclient1 hclient2
 SRC_CC_hserver = server.cc
 SRC_CC_hclient1 = client.cc
-SRC_CC_hclient2 = client.cc
+SRC_CC_hclient2 = client2.cc
 
 include $(L4DIR)/mk/prog.mk

@@ -96,6 +96,7 @@ void * malloc(unsigned size) throw()
 			currentBlock->used = true;
 
 			printf("Return address for: %u\n", ((l4_addr_t) currentBlock));
+			memset((void *) (((l4_addr_t) currentBlock)+sizeof(mem_infoblock)), 1, size);
 			mutex_unlock();
 			return (void *) (((l4_addr_t) currentBlock)+sizeof(mem_infoblock));
 		} else {

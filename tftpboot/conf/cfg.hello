@@ -7,6 +7,10 @@
   rom=rom;
   server=ns/server/service;
 
+[namespace:loader2]
+  rom=rom;
+  server2=ns/server/service;
+
 rom/hserver
   ns=ns/server,rw;
   l4re_dbg=all;
@@ -16,5 +20,5 @@ rom/loader rom/loader.cfg
   l4re_dbg=all;
 
 rom/loader rom/loader2.cfg
-  ns=ns/loader,rw;
+  ns=ns/loader2,rw;
   l4re_dbg=all;

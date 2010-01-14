@@ -1,7 +1,8 @@
 #include <l4/cxx/string.h>
 namespace Opcode {
 enum Opcodes {
-  func_show
+  func_show,
+  readScanCode
 };
 };
 

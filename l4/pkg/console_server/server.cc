@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <string>
 #include <string.h>
+#include <pthread.h>
 #include <list>
 #include "service.h"
 
@@ -39,7 +40,7 @@ static Hello_service hello;
   L4Re::Framebuffer::Info fbinfo;
   L4::Cap<L4Re::Dataspace> fbds = L4Re::Util::cap_alloc.alloc<L4Re::Dataspace>();
   std::list<std::string> textLines;
-
+  int lineOffset=0;
   void * fb_address;
   int yoffset=50;
 
@@ -54,25 +55,21 @@ void renderText();
 int
 Hello_server::dispatch(l4_umword_t, L4::Ipc_iostream &ios)
 {
-  printf("text\n");
   l4_msgtag_t t;
   ios >> t;
-  printf("text\n");
   L4::Opcode opcode;
   ios >> opcode;
-  printf("text\n");
   if(opcode == Opcode::func_show) {
-        printf("text\n");
-	unsigned long l;
 	std::string * str = new std::string("Client: ");
 	char buffer[10];
 	sprintf(buffer, "%lu", t.label());
 	str->append(buffer);
-	str->append(", saying: ");
-	const char * msg;
-	ios >> L4::ipc_buf_in (msg,l);
-	str->append(msg);
-	//printToConsole(*str);
+	str->append(", saying: ");;
+	char buffer2[4];
+	l4_uint8_t scancode;
+	ios >> scancode;
+	sprintf(buffer2, "%x", scancode);
+	str->append(buffer2);
 	printf("Message received: %s\n", str->c_str());
 	textLines.push_front(*str);
 	renderText();
@@ -90,24 +87,17 @@ Hello_service::open(int argc, cxx::String const *argv)
 
 int
 Hello_service::dispatch(l4_umword_t, L4::Ipc_iostream &ios)
-{  printf("text\n");
-
+{
   l4_msgtag_t t;
   ios >> t;
-  printf("text\n");
 
   L4::Opcode opcode;
   ios >> opcode;
-  printf("text\n");
 
   if(opcode ==  L4Re::Service_::Open) {
-  printf("text\n");
 	Hello_server * hello2 = new Hello_server();
-  printf("text\n");
 	printf("Address for hello server: %p\n", hello2);
-  printf("text\n");
 	my_registry.register_obj(hello2);
-  printf("text\n");
 	ios <<  hello2->obj_cap();
 	return L4_EOK;
   }
@@ -120,17 +110,96 @@ void renderText() {
 	int linesToPrint=10;
 	yoffset = 50+linesToPrint*20;
 	std::list<std::string>::iterator it;
+	int linesToOmit=lineOffset;
 	for(it=textLines.begin(); it != textLines.end(); it++) {
+		if(linesToOmit > 0) {
+			linesToOmit--;
+			continue;
+		}
 		printToConsole(*it);
 		yoffset -= 20;
 		linesToPrint--;
-		if(linesToPrint == 0) break;
+		if(linesToPrint < 0) break;
+	}
+}
+
+void * readInput(void * threadArg) {
+	/* Get our keyboard driver */
+	L4::Cap<void> server2 = L4Re::Util::cap_alloc.alloc<void>();
+	if (!server2.is_valid())
+	{
+		printf("Could not get capability slot!\n");
+	    return 0;
+	}
+
+	if (L4Re::Env::env()->names()->query("keyboard", server2))
+	{
+	   printf("Could not find my server!\n");
+	   return 0;
+	}
+
+	L4::Ipc_iostream s(l4_utcb());
+	printf("Got my iostream\n");
+	bool shift=false, alt=false, ctrl=false, escaped=false;
+	while(true) {
+		s << l4_umword_t(0x01);
+		printf("Filled it.\n");
+		l4_msgtag_t res = s.call(server2.cap(), 0x1234);
+		printf("And sent message.\n");
+		l4_uint8_t scancode;
+		s >> scancode;
+		printf("Got answer: %x\n", scancode);
+
+		if(scancode == 0xe0) { escaped=true; continue; }
+
+		// set shift, alt, ctrl
+		if(scancode == 0x2a || scancode == 0x36) { shift = true; continue; }
+		if(scancode == 0x2a+0x80 || scancode == 0x36+0x80) { shift = false; continue; }
+
+		if(scancode == 0x38) { alt = true; continue; }
+		if(scancode == 0x38+0x80) { alt = false; continue; }
+
+		if(scancode == 0x1d) { ctrl = true; continue; }
+		if(scancode == 0x1d+0x80) { ctrl = false; continue; }
+
+		if(ctrl && scancode == 0x10) break;
+
+		if(scancode == 0x1c) {
+			textLines.push_front("");
+			renderText();
+		} else {
+			char tmp = scancodeToChar(scancode, shift, alt, ctrl);
+			if(tmp > 0) {
+				textLines.front() += tmp;
+				renderText();
+			}
+			if(scancode == 0x0e) {
+				textLines.front().erase(textLines.front().length()-1, 1);
+				renderText();
+			}
+			if(scancode == 0x49) {
+				lineOffset++;
+				renderText();
+			}
+			if(scancode == 0x51) {
+				if(lineOffset > 0) lineOffset--;
+				renderText();
+			}
+		}
+		if(scancode != 0xe0) escaped=false;
 	}
 }
 
 int
 main()
 {
+	pthread_t thread1;
+	int  iret1;
+
+	/* Create independent threads each of which will execute function */
+
+	iret1 = pthread_create( &thread1, NULL, readInput, NULL);
+
   // init framebuffer stuff
   L4Re::Util::Fb::get(fbcap, fbds, &fb_address);
   fbcap->info(&fbinfo);

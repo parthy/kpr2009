@@ -2,7 +2,18 @@
   rom=rom;
   sigma0=sigma0;
   icu=icu;
-  
+  keybdrv;
+
+[namespace:server]
+  service;
+  rom=rom;
+  fb=vesa;
+  keyboard=ns/keyboard/keybdrv;
+
 rom/keyboard
-  ns=ns/keyboard;
-  log=logger->open("keyb", B);
+  ns=ns/keyboard,rw;
+  l4re_dbg=all;
+
+rom/hserver
+  ns=ns/server,rw;
+  l4re_dbg=all;

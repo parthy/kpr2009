@@ -13,7 +13,6 @@ title Hello
  module /bin/x86_586/l4f/hclient1
  module /bin/x86_586/l4f/hclient2
  module /conf/loader.cfg
- module /conf/loader2.cfg
  module /conf/cfg.hello
  vbeset 0x117
 

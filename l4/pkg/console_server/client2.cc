@@ -18,16 +18,14 @@
 
 #include <set>
 
-char * label;
-
 class Hello {
 public:
 	Hello() {}
-	void show(char const * str);
+	void show(l4_uint8_t scancode);
 };
 
 void
-Hello::show(char const * str)
+Hello::show(l4_uint8_t scancode)
 {
   L4::Cap<void> server = L4Re::Util::cap_alloc.alloc<void>();
   if (!server.is_valid())
@@ -44,20 +42,23 @@ Hello::show(char const * str)
 
   L4::Ipc_iostream s(l4_utcb());
   printf("Got my iostream\n");
-  s << l4_umword_t(Opcode::func_show) << str;
+  s << l4_umword_t(Opcode::func_show) << scancode;
   printf("And filled it.\n");
-  l4_msgtag_t res = s.call(server.cap(), atol(label));
+  l4_msgtag_t res = s.call(server.cap(), 0);
   printf("And sent message.\n");
 }
 
 int
 main(int argc, char * argv[])
-{ label = argv[1];
+{
   printf("Client starting.\n");
   Hello h;
-  h.show("Hello world!");
+
+    L4::Ipc_iostream s(l4_utcb());
+    printf("Got my iostream\n");
+    h.show(0x12);
 /*  std::set<int> foo;
-	foo.insert(10); 
+	foo.insert(10);
   foo.insert(26);
   foo.insert(25);
   foo.insert(24);

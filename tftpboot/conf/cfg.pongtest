@@ -1,0 +1,26 @@
+[namespace:keyboard]
+  rom=rom;
+  icu=icu;
+  sigma0=sigma0;  
+  keybdrv;
+
+[namespace:server]
+  service;
+  service2;
+  rom=rom;
+  fb=vesa;
+  keyboard=ns/keyboard/keybdrv;
+
+[namespace:loader]
+  rom=rom;
+  server=ns/server/service;
+  server2=ns/server/service2;
+
+rom/keyboard
+  ns=ns/keyboard,rw;
+
+rom/hserver
+  ns=ns/server,rw;
+  
+rom/loader rom/cfg.pong
+  ns=ns/loader,rw;

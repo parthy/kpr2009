@@ -6,33 +6,31 @@
  */
 #pragma once
 #include <l4/cxx/string.h>
+
+
 namespace Opcode {
 enum Opcodes {
-  func_show
+  getScreenBuffer
 };
 };
 
 namespace Protocol {
 enum Protocols {
-  Hello
+  Screen
 };
 };
 
-
-class Hello_server : public L4::Server_object
+class virtFB : public L4::Server_object
 {
-public:
-  int dispatch(l4_umword_t obj, L4::Ipc_iostream &ios);
-};
-
-
-class Hello_service : public L4::Server_object
-{
-private:
-  L4::Server_object * hello_server;
 public:
   int dispatch(l4_umword_t obj, L4::Ipc_iostream &ios);
   L4::Server_object *open(int argc, cxx::String const *argv);
+};
+
+class Keyboard_dispatcher : public L4::Server_object
+{
+public:
+  int dispatch(l4_umword_t obj, L4::Ipc_iostream &ios);
 };
 
 char scancodeToChar(l4_uint8_t scancode, bool shift, bool alt, bool ctrl) {

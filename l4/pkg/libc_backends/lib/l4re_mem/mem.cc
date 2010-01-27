@@ -46,6 +46,12 @@ void mutex_unlock() {
 
 void * malloc(unsigned size) throw()
 {
+	size += 8;
+	size &= ~3UL;
+
+	unsigned block_size = sizeof(mem_infoblock) + 8;
+	block_size &= ~3UL;
+
 	printf("================ MALLOC =================== : %u\n", size);
 	mutex_lock();
 	if(!init) {
@@ -68,7 +74,7 @@ void * malloc(unsigned size) throw()
 		mem_infoblock * firstBlock = (mem_infoblock *) startAddress;
 		firstBlock->next = startAddress;
 		firstBlock->used = false;
-		firstBlock->size = 1024*4*40-sizeof(mem_infoblock);
+		firstBlock->size = 1024*4*40-block_size;
 
 		init = true;
 	}
@@ -79,26 +85,26 @@ void * malloc(unsigned size) throw()
 	bool started = false;
 	while(true) {
 		// check if current block is free and big enough
-		if(!currentBlock->used && currentBlock->size > (size+sizeof(mem_infoblock)+1)) {
+		if(!currentBlock->used && currentBlock->size > (size+block_size+8)) {
 			// free space. fit it in.
 			printf("Got a space at %x\n", (unsigned long) currentBlock);
 
-			// the new infoblock will be at address size+sizeof(mem_infoblock), having size currentBlock->size - (size+sizeof(mem_infoblock))
-			mem_infoblock * newBlock = (mem_infoblock *) (((l4_addr_t) currentBlock)+size+sizeof(mem_infoblock)+1);
-			printf("Placing the new block at %u: %u + %u + %u Bytes\n", currentBlock, newBlock, size, sizeof(mem_infoblock));
+			// the new infoblock will be at address size+block_size, having size currentBlock->size - (size+block_size)
+			mem_infoblock * newBlock = (mem_infoblock *) (((l4_addr_t) currentBlock)+size+block_size);
+			printf("Placing the new block at %u: %u + %u + %u Bytes\n", currentBlock, newBlock, size, block_size);
 			newBlock->used = false;
 			newBlock->next = currentBlock->next;
 			printf("Setting newblock->next to %u\n", currentBlock->next);
-			newBlock->size = currentBlock->size - (size+sizeof(mem_infoblock)+1);
+			newBlock->size = currentBlock->size - (size+block_size);
 
 			currentBlock->next = (l4_addr_t) newBlock;
 			currentBlock->size = size;
 			currentBlock->used = true;
 
 			printf("Return address for: %u\n", ((l4_addr_t) currentBlock));
-			memset((void *) (((l4_addr_t) currentBlock)+sizeof(mem_infoblock)), 1, size);
+
 			mutex_unlock();
-			return (void *) (((l4_addr_t) currentBlock)+sizeof(mem_infoblock));
+			return (void *) (((l4_addr_t) currentBlock)+block_size);
 		} else {
 			// no space yet. search further or expand, if necessary.
 			if(started && ((l4_addr_t) currentBlock) == startAddress) {
@@ -131,10 +137,10 @@ void * malloc(unsigned size) throw()
 				newBlock->size = size;
 				newBlock->used = true;
 
-				if(size < ds_size+sizeof(mem_infoblock)+1) { // we have still space left
-					mem_infoblock * secondBlock = (mem_infoblock *) (((l4_addr_t) newBlock) + size + sizeof(mem_infoblock) + 1);
+				if(size < ds_size+block_size+8) { // we have still space left
+					mem_infoblock * secondBlock = (mem_infoblock *) (((l4_addr_t) newBlock) + size + block_size + 8);
 					secondBlock->next = startAddress;
-					secondBlock->size = ds_size - size - 2*sizeof(mem_infoblock) - 1;
+					secondBlock->size = ds_size - size - 2*block_size - 1;
 					secondBlock->used = false;
 					newBlock->next = (l4_addr_t) secondBlock;
 				}
@@ -145,7 +151,7 @@ void * malloc(unsigned size) throw()
 				// and finally return the address
 				printf("Return address: %x\n", ((l4_addr_t) newBlock));
 				mutex_unlock();
-				return (void *) (((l4_addr_t) newBlock)+sizeof(mem_infoblock));
+				return (void *) (((l4_addr_t) newBlock)+block_size);
 
 			} else {
 				// shift blocks and try again
@@ -161,9 +167,13 @@ void * malloc(unsigned size) throw()
 
 void free(void * p) throw()
 {
+
+	unsigned block_size = sizeof(mem_infoblock) + 8;
+	block_size &= ~3UL;
+
 	printf("================ FREE ===================\n");
 	mutex_lock();
-	mem_infoblock * block = (mem_infoblock *) (((l4_addr_t) p)-sizeof(mem_infoblock));
+	mem_infoblock * block = (mem_infoblock *) (((l4_addr_t) p)-block_size);
 	printf("Freeing %x, next: %x\n", p, block->next);
 
 	// we have to look forward and backward, if we have to merge something.
@@ -182,7 +192,7 @@ void free(void * p) throw()
 			return;
 		} else {
 			printf("Merge with next Block\n");
-			block->size += nextBlock->size+sizeof(mem_infoblock);
+			block->size += nextBlock->size+block_size;
 			block->next = nextBlock->next;
 			block->used = false;
 			mutex_unlock();
@@ -204,7 +214,7 @@ void free(void * p) throw()
 			mutex_unlock();
 			return;
 		} else {
-			previousBlock->size += block->size + sizeof(mem_infoblock);
+			previousBlock->size += block->size + block_size;
 			previousBlock->next = block->next;
 			mutex_unlock();
 			return;
@@ -218,18 +228,18 @@ void free(void * p) throw()
 	}
 	if(previousBlock->used && !nextBlock->used) {
 		// next Block is free, we have to merge this in freed block. thus the freed block now has its own size plus the next one's plus one blocksize
-		block->size += nextBlock->size + sizeof(mem_infoblock);
+		block->size += nextBlock->size + block_size;
 		block->used = false;
 		block->next = nextBlock->next;
 	}
 	if(!previousBlock->used && nextBlock->used) {
 		// previous Block is free, we have to merge freed block in this one. thus the previous block now has its own size plus the current one's plus one blocksize
-		previousBlock->size += block->size + sizeof(mem_infoblock);
+		previousBlock->size += block->size + block_size;
 		previousBlock->next = block->next;
 	}
 	if(!previousBlock->used && !nextBlock->used) {
 		// both are free. thus the previous block gets size of its own plus current plus next plus 2*blocksize
-		previousBlock->size += block->size + nextBlock->size + 2*sizeof(mem_infoblock);
+		previousBlock->size += block->size + nextBlock->size + 2*block_size;
 		previousBlock->next = nextBlock->next;
 	}
 	mutex_unlock();

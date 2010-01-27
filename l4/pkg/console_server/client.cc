@@ -18,8 +18,6 @@
 
 #include <set>
 
-char * label;
-
 class Hello {
 public:
 	Hello() {}
@@ -46,39 +44,19 @@ Hello::show(l4_uint8_t scancode)
   printf("Got my iostream\n");
   s << l4_umword_t(Opcode::func_show) << scancode;
   printf("And filled it.\n");
-  l4_msgtag_t res = s.call(server.cap(), atol(label));
+  l4_msgtag_t res = s.call(server.cap(), 0);
   printf("And sent message.\n");
 }
 
 int
 main(int argc, char * argv[])
-{ label = argv[1];
+{ 
   printf("Client starting.\n");
   Hello h;
 
-  // Get the keyboard driver
-  L4::Cap<void> server = L4Re::Util::cap_alloc.alloc<void>();
-    if (!server.is_valid())
-      {
-        printf("Could not get capability slot!\n");
-        return 0;
-      }
-
-    if (L4Re::Env::env()->names()->query("keyboard", server))
-      {
-        printf("Could not find my server!\n");
-        return 0;
-      }
-
     L4::Ipc_iostream s(l4_utcb());
     printf("Got my iostream\n");
-    s << l4_umword_t(Opcode::readScanCode);
-    printf("And filled it.\n");
-    l4_msgtag_t res = s.call(server.cap(), atol(label));
-    printf("And sent message.\n");
-    l4_uint8_t scancode;
-    s >> scancode;
-    h.show(scancode);
+    h.show(0x10);
 /*  std::set<int> foo;
 	foo.insert(10);
   foo.insert(26);

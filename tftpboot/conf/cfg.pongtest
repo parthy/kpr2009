@@ -10,7 +10,8 @@
   rom=rom;
   fb=vesa;
   keyboard=ns/keyboard/keybdrv;
-
+  dssvr;
+  
 [namespace:loader]
   rom=rom;
   server=ns/server/service;

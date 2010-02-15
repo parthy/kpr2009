@@ -1,3 +1,3 @@
-requires: 
-provides: 
+requires: l4re keyboard
+provides: keyb_dispatch fbsrv
 maintainer: mail@klee-parthy.de

@@ -26,6 +26,7 @@
 #include <l4/cxx/minmax>
 #include <l4/re/fb>
 #include <l4/util/util.h>
+#include <x86/l4/util/irq.h>
 #include <l4/libgfxbitmap/font.h>
 #include <cstdio>
 #include <unistd.h>
@@ -68,6 +69,7 @@ int pressedKeys[4];
 
 bool consFocus = false;
 bool dssvr_started = false;
+bool switching = false;
 
 void printToConsole(std::string str) {
 	char const * output = str.c_str();
@@ -185,6 +187,11 @@ public:
 		}
 	}
 	int dispatch(l4_umword_t obj, L4::Ipc_iostream &ios) {
+		// if we are in the middle of switching dataspaces, we don't allow these requests to come through.
+		// pong wants to play with only one ball, after all!
+		while(switching) l4_sleep(100);
+
+		// just redirect to the default implementation
 		return L4Re::Util::Dataspace_svr::dispatch(obj, ios);
 	}
 	void switch_addr(l4_addr_t newAddr) {
@@ -283,39 +290,53 @@ void * readInput(void * threadArg) {
 		if(scancode == 0x1d+0x80) { ctrl = false; continue; }
 
 		if(consFocus && alt && scancode == 0x3c) {
-			// copy all the pong fb data into the real fb
-			memcpy(fb_address, fb_address_virt1, fbds_real->size());
-
-			// set the focus to pong
-			consFocus = false;
+			// tell the dataspace server to delay handing out pages
+			switching = true;
 
 			// let pong use the real fb
 			((virtFBDS *) pongDS)->switch_addr((l4_addr_t) fb_address);
 
 			// unmap all pages of the virtual framebuffer
 			l4_addr_t tempAddr = (l4_addr_t) fb_address_virt1;
-        	while(tempAddr < ((l4_addr_t) fb_address_virt1)+fbds_real->size()) {
+			while(tempAddr < ((l4_addr_t) fb_address_virt1)+fbds_real->size()) {
 				l4_task_unmap(L4Re::Env::env()->task().cap(), l4_fpage(tempAddr, 10, L4_FPAGE_RWX), L4_FP_OTHER_SPACES);
 				tempAddr += 1024*4096;
-        	}
+			}
+
+			// copy all the pong fb data into the real fb
+			memcpy(fb_address, fb_address_virt1, fbds_real->size());
+
+			// tell the dataspace server that we're ready
+			switching = false;
+
+			// set the focus to pong
+			consFocus = false;
+
 		}
 		if(!consFocus && alt && scancode == 0x3b) {
-			// save the framebuffer so that pong can continue drawing it
-			memcpy(fb_address_virt1, fb_address, fbds_real->size());
-
-			// set the focus to the console
-			consFocus = true;
+			// tell the dataspace server to delay handing out pages
+			switching = true;
 
 			// let pong use the virtual fb
 			((virtFBDS *) pongDS)->switch_addr((l4_addr_t) fb_address_virt1);
 
 			// unmap all pages of the real framebuffer
 			l4_addr_t tempAddr = (l4_addr_t) fb_address;
-        	while(tempAddr < ((l4_addr_t) fb_address)+fbds_real->size()) {
+			while(tempAddr < ((l4_addr_t) fb_address)+fbds_real->size()) {
 				l4_task_unmap(L4Re::Env::env()->task().cap(), l4_fpage(tempAddr, 10, L4_FPAGE_RWX), L4_FP_OTHER_SPACES);
 				tempAddr += 1024*4096;
-        	}
+			}
 
+			// save the framebuffer so that pong can continue drawing it
+			memcpy(fb_address_virt1, fb_address, fbds_real->size());
+
+			// set the focus to the console
+			consFocus = true;
+
+			// tell the dataspace server that we're ready
+        	switching = false;
+
+        	// newly render the console text
         	renderText();
 		}
 
@@ -414,14 +435,16 @@ main()
 	L4Re::Env::env()->mem_alloc()->alloc(fbds_real->size(), fbds_virt1);
 	L4Re::Env::env()->rm()->attach(&fb_address_virt1, fbds_real->size(), L4Re::Rm::Search_addr, fbds_virt1, 0);
 
-	//printf("Real fb is at %p\n", fb_address);
+	// cause pagefaults for the real framebuffer so we can map pages from it
 	memset(fb_address, 0, fbds_real->size());
 
+	// start the dataspace server thread
 	iret3 = pthread_create( &thread3, NULL, dispatchDS, NULL);
 
 	// wait for the dispatcher dssvr to appear
 	while(!dssvr_started) l4_sleep(100);
 
+	// start the keyboard input thread as well as the server for the pong client to receive keypresses
 	iret1 = pthread_create( &thread1, NULL, readInput, NULL);
 	iret2 = pthread_create( &thread2, NULL, dispatchInput, NULL);
 

@@ -1,58 +1,18 @@
-default 2
+default 0
 timeout 5
-
-title Hello
- kernel /bin/x86_586/bootstrap
- modaddr 0x02000000
- module /bin/fiasco -serial_esc -jdb_cmd=JS
- module /bin/x86_586/l4f/sigma0
- module /bin/x86_586/l4f/moe rom/cfg.hello
- module /bin/x86_586/l4f/loader
- module /bin/x86_586/l4f/l4re
- module /bin/x86_586/l4f/hserver
- module /bin/x86_586/l4f/hclient1
- module /bin/x86_586/l4f/hclient2
- module /conf/loader.cfg
- module /conf/cfg.hello
- vbeset 0x117
-
-title Keyboard
- kernel /bin/x86_586/bootstrap
- modaddr 0x02000000
- module /bin/fiasco -serial_esc -jdb_cmd=JS
- module /bin/x86_586/l4f/sigma0
- module /bin/x86_586/l4f/moe rom/cfg.keyboard
- module /bin/x86_586/l4f/hserver
- module /bin/x86_586/l4f/keyboard
- module /bin/x86_586/l4f/l4re
- module /conf/cfg.keyboard
- vbeset 0x117
 
 title Pong
  kernel /bin/x86_586/bootstrap
  modaddr 0x02000000
  module /bin/fiasco -serial_esc -jdb_cmd=JS
  module /bin/x86_586/l4f/sigma0
- module /bin/x86_586/l4f/moe rom/cfg.pongtest
+ module /bin/x86_586/l4f/moe rom/cfg.pongloader
  module /bin/x86_586/l4f/keyboard
  module /bin/x86_586/l4f/hserver
  module /bin/x86_586/l4f/l4re
  module /bin/x86_586/l4f/pong-server
  module /bin/x86_586/l4f/pong-client
  module /bin/x86_586/l4f/loader
- module /conf/cfg.pongtest
+ module /conf/cfg.pongloader
  module /conf/cfg.pong
  vbeset 0x117
-
-
-title Client-Server
- kernel /bin/x86_586/bootstrap
- modaddr 0x02000000
- module /bin/fiasco -serial_esc -jdb_cmd=JS
- module /bin/x86_586/l4f/sigma0
- module /bin/x86_586/l4f/moe rom/cfg.client-server
- module /bin/x86_586/l4f/l4re
- module /bin/x86_586/l4f/ex_clntsrv-server
- module /bin/x86_586/l4f/ex_clntsrv-client
- module /conf/cfg.client-server
-
